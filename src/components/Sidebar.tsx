@@ -13,6 +13,7 @@ import {
   Users,
   Package,
   BarChart3,
+  Warehouse,
   LogOut,
   Store,
   Sun,
@@ -23,6 +24,7 @@ import {
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/stock", label: "Stock", icon: Warehouse },
   { href: "/kardex", label: "Kardex", icon: ClipboardList },
   { href: "/transferencias", label: "Transferencias", icon: ArrowLeftRight },
   { href: "/ventas", label: "Ventas", icon: ShoppingCart },
