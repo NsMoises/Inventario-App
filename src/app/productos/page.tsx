@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import { obtenerProductos, crearProducto, actualizarProducto, eliminarProducto, obtenerStock, obtenerTiendas } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
+import { obtenerProductos, crearProducto, actualizarProducto, eliminarProducto, obtenerStock, obtenerTiendas, registrarEntrada } from "@/lib/api";
 import { Producto, Stock, Tienda } from "@/lib/types";
 import {
   Package, Plus, Pencil, Trash2, Search, Tag, DollarSign,
@@ -17,9 +18,11 @@ const emptyForm = {
   nombre: "", descripcion: "", sku: "", categoria: "",
   marca: "", proveedor: "", unidad_medida: "unidad",
   precio_compra: 0, precio_venta: 0, stock_minimo: 0,
+  tienda_id: 0, cantidad_inicial: 0,
 };
 
 export default function ProductosPage() {
+  const { user } = useAuth();
   const [productos, setProductos] = useState<Producto[]>([]);
   const [stock, setStock] = useState<Stock[]>([]);
   const [tiendas, setTiendas] = useState<Tienda[]>([]);
@@ -71,8 +74,12 @@ export default function ProductosPage() {
     setSaving(true);
     try {
       if (modal === "crear") {
-        await crearProducto(form);
-        setToast({ message: "Producto creado exitosamente", type: "success" });
+        const { tienda_id, cantidad_inicial, ...productoData } = form;
+        const prod = await crearProducto(productoData);
+        if (tienda_id && cantidad_inicial > 0 && user) {
+          await registrarEntrada(prod.id, tienda_id, cantidad_inicial, user.id);
+        }
+        setToast({ message: "Producto creado con stock inicial", type: "success" });
       } else if (editId) {
         await actualizarProducto(editId, form);
         setToast({ message: "Producto actualizado exitosamente", type: "success" });
@@ -293,6 +300,29 @@ export default function ProductosPage() {
                   <input type="number" min="0" value={form.stock_minimo} onChange={(e) => set("stock_minimo", Number(e.target.value))}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none dark:bg-gray-700 dark:text-white" />
                 </div>
+
+                {modal === "crear" && (
+                  <>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <Store className="h-3.5 w-3.5" /> Tienda destino *
+                      </label>
+                      <select value={form.tienda_id} onChange={(e) => set("tienda_id", Number(e.target.value))}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none dark:bg-gray-700 dark:text-white">
+                        <option value={0}>Seleccionar tienda</option>
+                        {tiendas.map((t) => (<option key={t.id} value={t.id}>{t.nombre}</option>))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <Box className="h-3.5 w-3.5" /> Cantidad inicial *
+                      </label>
+                      <input type="number" min="0" value={form.cantidad_inicial} onChange={(e) => set("cantidad_inicial", Number(e.target.value))}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none dark:bg-gray-700 dark:text-white" />
+                    </div>
+                  </>
+                )}
+
                 <div className="md:col-span-2">
                   <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     <Building2 className="h-3.5 w-3.5" /> Proveedor
