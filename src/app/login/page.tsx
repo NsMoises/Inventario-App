@@ -1,17 +1,51 @@
 "use client";
 
-import { useState, FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useState, FormEvent, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { Store, LogIn, AlertCircle } from "lucide-react";
+import { Store, LogIn, AlertCircle, Sparkles, ArrowLeft } from "lucide-react";
+import Link from "next/link";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
   const { signIn } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams?.get("demo") === "1") {
+      iniciarDemo();
+    }
+  }, []);
+
+  const iniciarDemo = async () => {
+    setDemoLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/demo", { method: "POST" });
+      const data = await res.json();
+      if (data.error) {
+        setError(data.error);
+        setDemoLoading(false);
+        return;
+      }
+      setEmail(data.email);
+      setPassword(data.password);
+      const result = await signIn(data.email, data.password);
+      if (result.error) {
+        setError(result.error);
+      } else {
+        router.push("/dashboard");
+      }
+    } catch {
+      setError("Error al conectar con el servidor");
+    }
+    setDemoLoading(false);
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -28,6 +62,8 @@ export default function LoginPage() {
     }
   };
 
+  const isBusy = loading || demoLoading;
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-blue-100 dark:from-gray-900 dark:to-gray-950 p-4">
       <div className="w-full max-w-md">
@@ -41,6 +77,13 @@ export default function LoginPage() {
           <p className="text-gray-500 dark:text-gray-400 mt-1">
             Inicia sesión para continuar
           </p>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700 mt-2"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Volver al inicio
+          </Link>
         </div>
 
         <form
@@ -84,7 +127,7 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={isBusy}
             className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 text-white font-medium py-2.5 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (
@@ -93,6 +136,33 @@ export default function LoginPage() {
               <>
                 <LogIn className="h-5 w-5" />
                 Iniciar Sesión
+              </>
+            )}
+          </button>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-200 dark:border-gray-700" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-white dark:bg-gray-800 px-2 text-gray-400">
+                o
+              </span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={iniciarDemo}
+            disabled={isBusy}
+            className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-yellow-400 to-orange-500 hover:from-yellow-500 hover:to-orange-600 text-white font-medium py-2.5 px-4 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
+          >
+            {demoLoading ? (
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
+            ) : (
+              <>
+                <Sparkles className="h-5 w-5" />
+                Probar Demo Gratis
               </>
             )}
           </button>

@@ -7,7 +7,7 @@ import Sidebar from "./Sidebar";
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { user, loading } = useAuth();
-  const isLoginPage = pathname === "/login";
+  const isPublicPage = pathname === "/login" || pathname === "/";
 
   if (loading) {
     return (
@@ -17,7 +17,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (isLoginPage || !user) {
+  if (isPublicPage || !user) {
     return <>{children}</>;
   }
 
