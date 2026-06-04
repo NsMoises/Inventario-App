@@ -63,6 +63,7 @@ export default function ProductosPage() {
       categoria: p.categoria, marca: p.marca, proveedor: p.proveedor,
       unidad_medida: p.unidad_medida, precio_compra: p.precio_compra,
       precio_venta: p.precio_venta, stock_minimo: p.stock_minimo,
+      tienda_id: 0, cantidad_inicial: 0,
     });
     setModal("editar");
   };
