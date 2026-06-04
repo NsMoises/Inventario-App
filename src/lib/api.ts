@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import { Kardex, Producto, Stock, Tienda, Perfil, DashboardKPI } from "./types";
+import { Kardex, Producto, Stock, Tienda, Perfil, DashboardKPI, IndicadoresFinancieros } from "./types";
 
 // ========================
 // TIENDAS
@@ -251,4 +251,144 @@ export async function obtenerDashboardKPI(
   });
 
   return kpi;
+}
+
+// ========================
+// INDICADORES FINANCIEROS
+// ========================
+export interface RentabilidadProducto {
+  producto_id: number;
+  nombre: string;
+  sku: string;
+  cantidad_vendida: number;
+  precio_compra: number;
+  precio_venta: number;
+  margen_unitario: number;
+  margen_total: number;
+}
+
+export interface MovimientoFinanciero {
+  mes: string;
+  ingresos: number;
+  egresos: number;
+}
+
+export async function obtenerIndicadoresFinancieros(
+  tiendaId?: number
+): Promise<IndicadoresFinancieros> {
+  const { data: stockData, error: stockError } = await supabase
+    .from("stock")
+    .select("cantidad, productos(*)")
+    .order("producto_id");
+
+  if (stockError) throw stockError;
+
+  let valorCosto = 0;
+  let valorVenta = 0;
+  const rentabilidadMap = new Map<number, RentabilidadProducto>();
+
+  stockData?.forEach((s) => {
+    const p = s.productos as any;
+    if (p) {
+      const costo = (p.precio_compra ?? 0) * s.cantidad;
+      const venta = (p.precio_venta ?? 0) * s.cantidad;
+      valorCosto += costo;
+      valorVenta += venta;
+    }
+  });
+
+  const desde = new Date();
+  desde.setDate(1);
+  desde.setHours(0, 0, 0, 0);
+
+  let query = supabase
+    .from("kardex")
+    .select("*, productos(*)")
+    .gte("fecha_hora", desde.toISOString())
+    .eq("tipo_movimiento", "SALIDA");
+
+  if (tiendaId) {
+    query = query.eq("tienda_origen_id", tiendaId);
+  }
+
+  const { data: ventasMes } = await query;
+  let utilidadMes = 0;
+
+  ventasMes?.forEach((v) => {
+    const p = v.productos as any;
+    if (p) {
+      const margen = (p.precio_venta ?? 0) - (p.precio_compra ?? 0);
+      utilidadMes += margen * v.cantidad;
+    }
+  });
+
+  const { data: todosVendidos } = await supabase
+    .from("kardex")
+    .select("*, productos(*)")
+    .eq("tipo_movimiento", "SALIDA");
+
+  todosVendidos?.forEach((v) => {
+    const p = v.productos as any;
+    if (!p) return;
+    const id = p.id;
+    if (!rentabilidadMap.has(id)) {
+      rentabilidadMap.set(id, {
+        producto_id: id,
+        nombre: p.nombre,
+        sku: p.sku,
+        cantidad_vendida: 0,
+        precio_compra: p.precio_compra ?? 0,
+        precio_venta: p.precio_venta ?? 0,
+        margen_unitario: (p.precio_venta ?? 0) - (p.precio_compra ?? 0),
+        margen_total: 0,
+      });
+    }
+    const r = rentabilidadMap.get(id)!;
+    r.cantidad_vendida += v.cantidad;
+    r.margen_total = r.margen_unitario * r.cantidad_vendida;
+  });
+
+  const rentabilidad = Array.from(rentabilidadMap.values())
+    .sort((a, b) => b.margen_total - a.margen_total)
+    .slice(0, 20);
+
+  return {
+    valor_inventario_costo: valorCosto,
+    valor_inventario_venta: valorVenta,
+    margen_potencial: valorVenta - valorCosto,
+    utilidad_mes: utilidadMes,
+    rentabilidad_productos: rentabilidad,
+  };
+}
+
+export async function obtenerMovimientosFinancieros(
+  tiendaId?: number
+): Promise<MovimientoFinanciero[]> {
+  const { data, error } = await supabase
+    .from("kardex")
+    .select("fecha_hora, tipo_movimiento, cantidad, productos(*)")
+    .in("tipo_movimiento", ["ENTRADA", "SALIDA"])
+    .order("fecha_hora", { ascending: true })
+    .limit(2000);
+
+  if (error) throw error;
+
+  const meses = new Map<string, { ingresos: number; egresos: number }>();
+
+  data?.forEach((mov) => {
+    const p = mov.productos as any;
+    if (!p) return;
+    const mes = new Date(mov.fecha_hora).toISOString().slice(0, 7);
+    if (!meses.has(mes)) meses.set(mes, { ingresos: 0, egresos: 0 });
+    const m = meses.get(mes)!;
+    if (mov.tipo_movimiento === "SALIDA") {
+      m.ingresos += (p.precio_venta ?? 0) * mov.cantidad;
+    } else {
+      m.egresos += (p.precio_compra ?? 0) * mov.cantidad;
+    }
+  });
+
+  return Array.from(meses.entries())
+    .map(([mes, vals]) => ({ mes, ...vals }))
+    .sort((a, b) => a.mes.localeCompare(b.mes));
 }

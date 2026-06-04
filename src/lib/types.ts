@@ -66,3 +66,20 @@ export interface DashboardKPI {
   cantidad_entradas: number;
   cantidad_transferencias: number;
 }
+
+export interface IndicadoresFinancieros {
+  valor_inventario_costo: number;
+  valor_inventario_venta: number;
+  margen_potencial: number;
+  utilidad_mes: number;
+  rentabilidad_productos: {
+    producto_id: number;
+    nombre: string;
+    sku: string;
+    cantidad_vendida: number;
+    precio_compra: number;
+    precio_venta: number;
+    margen_unitario: number;
+    margen_total: number;
+  }[];
+}

@@ -12,6 +12,7 @@ import {
   ShoppingCart,
   Users,
   Package,
+  BarChart3,
   LogOut,
   Store,
   Sun,
@@ -25,6 +26,7 @@ const navItems = [
   { href: "/kardex", label: "Kardex", icon: ClipboardList },
   { href: "/transferencias", label: "Transferencias", icon: ArrowLeftRight },
   { href: "/ventas", label: "Ventas", icon: ShoppingCart },
+  { href: "/finanzas", label: "Finanzas", icon: BarChart3 },
   { href: "/productos", label: "Productos", icon: Package },
 ];
 

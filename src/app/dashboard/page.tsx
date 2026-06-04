@@ -8,8 +8,9 @@ import {
   obtenerTiendas,
   obtenerKardex,
   obtenerStock,
+  obtenerIndicadoresFinancieros,
 } from "@/lib/api";
-import { DashboardKPI, Kardex, Tienda, Stock } from "@/lib/types";
+import { DashboardKPI, Kardex, Tienda, Stock, IndicadoresFinancieros } from "@/lib/types";
 import { exportarReporteDashboard, exportarReporteStock } from "@/lib/reportes";
 import {
   TrendingUp,
@@ -19,6 +20,7 @@ import {
   CalendarClock,
   FileText,
   AlertTriangle,
+  DollarSign,
 } from "lucide-react";
 import {
   BarChart,
@@ -52,6 +54,7 @@ export default function DashboardPage() {
   );
   const [movimientos, setMovimientos] = useState<Kardex[]>([]);
   const [stockAlertas, setStockAlertas] = useState<Stock[]>([]);
+  const [financieros, setFinancieros] = useState<IndicadoresFinancieros | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -67,16 +70,18 @@ export default function DashboardPage() {
   const cargarDatos = async () => {
     setLoading(true);
     try {
-      const [kpiData, tiendasData, kardexData, stockData] = await Promise.all([
+      const [kpiData, tiendasData, kardexData, stockData, finData] = await Promise.all([
         obtenerDashboardKPI(tiendaFiltro),
         obtenerTiendas(),
         obtenerKardex(tiendaFiltro, 10),
         obtenerStock(tiendaFiltro),
+        obtenerIndicadoresFinancieros(tiendaFiltro),
       ]);
       setKpi(kpiData);
       setTiendas(tiendasData);
       setMovimientos(kardexData);
       setStockAlertas(stockData.filter((s) => s.cantidad <= (s.productos?.stock_minimo ?? 0) && (s.productos?.stock_minimo ?? 0) > 0));
+      setFinancieros(finData);
     } catch (error) {
       console.error("Error al cargar dashboard:", error);
     } finally {
@@ -234,6 +239,51 @@ export default function DashboardPage() {
                       </p>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {financieros && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/30">
+                      <DollarSign className="h-5 w-5 text-blue-600" />
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Valor Inventario (Costo)</p>
+                  <p className="text-xl font-bold text-gray-900 dark:text-white">S/ {financieros.valor_inventario_costo.toFixed(2)}</p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="p-2 rounded-lg bg-green-50 dark:bg-green-900/30">
+                      <TrendingUp className="h-5 w-5 text-green-600" />
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Valor Inventario (Venta)</p>
+                  <p className="text-xl font-bold text-gray-900 dark:text-white">S/ {financieros.valor_inventario_venta.toFixed(2)}</p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="p-2 rounded-lg bg-amber-50 dark:bg-amber-900/30">
+                      <DollarSign className="h-5 w-5 text-amber-600" />
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Margen Potencial</p>
+                  <p className={`text-xl font-bold ${financieros.margen_potencial >= 0 ? "text-gray-900 dark:text-white" : "text-red-600"}`}>
+                    S/ {financieros.margen_potencial.toFixed(2)}
+                  </p>
+                </div>
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="p-2 rounded-lg bg-purple-50 dark:bg-purple-900/30">
+                      <TrendingUp className="h-5 w-5 text-purple-600" />
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Utilidad del Mes</p>
+                  <p className={`text-xl font-bold ${financieros.utilidad_mes >= 0 ? "text-gray-900 dark:text-white" : "text-red-600"}`}>
+                    S/ {financieros.utilidad_mes.toFixed(2)}
+                  </p>
                 </div>
               </div>
             )}
