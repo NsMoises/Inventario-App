@@ -7,7 +7,7 @@ import { obtenerKardex, obtenerTiendas, registrarEntrada } from "@/lib/api";
 import { Kardex, Tienda } from "@/lib/types";
 import {
   Search, Filter, Plus, ClipboardList, Download,
-  CalendarDays, FileSpreadsheet
+  CalendarDays, FileSpreadsheet, FileText, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import Toast from "@/components/Toast";
 import { supabase } from "@/lib/supabase";
@@ -29,6 +29,8 @@ export default function KardexPage() {
   const [fechaHasta, setFechaHasta] = useState("");
   const [toast, setToast] = useState<ToastType | null>(null);
 
+  const [pagina, setPagina] = useState(0);
+  const itemsPorPagina = 25;
   const [showEntradaModal, setShowEntradaModal] = useState(false);
   const [entradaProducto, setEntradaProducto] = useState("");
   const [entradaCantidad, setEntradaCantidad] = useState("");
@@ -42,6 +44,7 @@ export default function KardexPage() {
 
   const cargarDatos = useCallback(async () => {
     setLoading(true);
+    setPagina(0);
     try {
       const [kardexData, tiendasData] = await Promise.all([
         obtenerKardex(tiendaFiltro, 500, fechaDesde || undefined, fechaHasta || undefined),
@@ -76,6 +79,9 @@ export default function KardexPage() {
     const coincideTipo = !filtroTipo || mov.tipo_movimiento === filtroTipo;
     return coincideBusqueda && coincideTipo;
   });
+
+  const totalPaginas = Math.ceil(movimientosFiltrados.length / itemsPorPagina);
+  const paginados = movimientosFiltrados.slice(pagina * itemsPorPagina, (pagina + 1) * itemsPorPagina);
 
   const exportToExcel = () => {
     const data = movimientosFiltrados.map((m) => ({
@@ -153,9 +159,16 @@ export default function KardexPage() {
               </select>
             )}
             <button onClick={exportToExcel}
-              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors">
               <FileSpreadsheet className="h-4 w-4" />
-              Exportar Excel
+              Excel
+            </button>
+            <button onClick={() => {
+              import("@/lib/reportes").then((m) => m.exportarReporteKardex(movimientosFiltrados));
+            }}
+              className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors">
+              <FileText className="h-4 w-4" />
+              PDF
             </button>
             <button onClick={() => setShowEntradaModal(true)}
               className="flex items-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
@@ -213,7 +226,7 @@ export default function KardexPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {movimientosFiltrados.map((mov) => (
+                  {paginados.map((mov) => (
                     <tr key={mov.id} className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/30">
                       <td className="px-5 py-3 text-gray-600 dark:text-gray-300 whitespace-nowrap text-xs">
                         {new Date(mov.fecha_hora).toLocaleString("es-PE")}
@@ -252,8 +265,21 @@ export default function KardexPage() {
                 </tbody>
               </table>
             </div>
-            <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-700 text-xs text-gray-400">
-              Mostrando {movimientosFiltrados.length} de {movimientos.length} movimientos
+            <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between text-xs text-gray-400">
+              <span>Mostrando {movimientosFiltrados.length} de {movimientos.length} movimientos</span>
+              {totalPaginas > 1 && (
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setPagina(Math.max(0, pagina - 1))} disabled={pagina === 0}
+                    className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30">
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <span>Pág {pagina + 1} de {totalPaginas}</span>
+                  <button onClick={() => setPagina(Math.min(totalPaginas - 1, pagina + 1))} disabled={pagina >= totalPaginas - 1}
+                    className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30">
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}

@@ -7,14 +7,18 @@ import {
   obtenerDashboardKPI,
   obtenerTiendas,
   obtenerKardex,
+  obtenerStock,
 } from "@/lib/api";
-import { DashboardKPI, Kardex, Tienda } from "@/lib/types";
+import { DashboardKPI, Kardex, Tienda, Stock } from "@/lib/types";
+import { exportarReporteDashboard, exportarReporteStock } from "@/lib/reportes";
 import {
   TrendingUp,
   PackagePlus,
   ArrowLeftRight,
   ShoppingCart,
   CalendarClock,
+  FileText,
+  AlertTriangle,
 } from "lucide-react";
 import {
   BarChart,
@@ -47,6 +51,7 @@ export default function DashboardPage() {
     perfil?.tienda_id ?? undefined
   );
   const [movimientos, setMovimientos] = useState<Kardex[]>([]);
+  const [stockAlertas, setStockAlertas] = useState<Stock[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -62,14 +67,16 @@ export default function DashboardPage() {
   const cargarDatos = async () => {
     setLoading(true);
     try {
-      const [kpiData, tiendasData, kardexData] = await Promise.all([
+      const [kpiData, tiendasData, kardexData, stockData] = await Promise.all([
         obtenerDashboardKPI(tiendaFiltro),
         obtenerTiendas(),
         obtenerKardex(tiendaFiltro, 10),
+        obtenerStock(tiendaFiltro),
       ]);
       setKpi(kpiData);
       setTiendas(tiendasData);
       setMovimientos(kardexData);
+      setStockAlertas(stockData.filter((s) => s.cantidad <= (s.productos?.stock_minimo ?? 0) && (s.productos?.stock_minimo ?? 0) > 0));
     } catch (error) {
       console.error("Error al cargar dashboard:", error);
     } finally {
@@ -143,24 +150,36 @@ export default function DashboardPage() {
             </p>
           </div>
 
-          {esAdmin && (
-            <select
-              value={tiendaFiltro ?? ""}
-              onChange={(e) =>
-                setTiendaFiltro(
-                  e.target.value ? Number(e.target.value) : undefined
-                )
-              }
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none"
+          <div className="flex items-center gap-2">
+            {esAdmin && (
+              <select
+                value={tiendaFiltro ?? ""}
+                onChange={(e) =>
+                  setTiendaFiltro(
+                    e.target.value ? Number(e.target.value) : undefined
+                  )
+                }
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none dark:bg-gray-800 dark:text-white"
+              >
+                <option value="">Todas las tiendas</option>
+                {tiendas.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.nombre}
+                  </option>
+                ))}
+              </select>
+            )}
+            <button
+              onClick={() => {
+                const tiendaNombre = tiendaFiltro ? tiendas.find(t => t.id === tiendaFiltro)?.nombre : undefined;
+                exportarReporteDashboard(kpi, tiendaNombre);
+              }}
+              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors"
             >
-              <option value="">Todas las tiendas</option>
-              {tiendas.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.nombre}
-                </option>
-              ))}
-            </select>
-          )}
+              <FileText className="h-4 w-4" />
+              PDF
+            </button>
+          </div>
         </div>
 
         {loading ? (
@@ -195,6 +214,29 @@ export default function DashboardPage() {
                 );
               })}
             </div>
+
+            {stockAlertas.length > 0 && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-5 shadow-sm">
+                <div className="flex items-center gap-2 mb-3">
+                  <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                  <h3 className="text-sm font-semibold text-red-800 dark:text-red-300">
+                    Alertas de Stock Bajo ({stockAlertas.length})
+                  </h3>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                  {stockAlertas.slice(0, 8).map((s) => (
+                    <div key={s.id} className="bg-white dark:bg-gray-800 rounded-lg px-3 py-2 border border-red-100 dark:border-red-900">
+                      <p className="text-xs font-medium text-gray-800 dark:text-white truncate">
+                        {s.productos?.nombre ?? "—"}
+                      </p>
+                      <p className="text-xs text-red-600 dark:text-red-400">
+                        Stock: {s.cantidad} / Mín: {s.productos?.stock_minimo ?? 0}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
