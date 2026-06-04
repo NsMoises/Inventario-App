@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/context/AuthContext";
-import { obtenerProductos, crearProducto, actualizarProducto, eliminarProducto, obtenerStock, obtenerTiendas, registrarEntrada } from "@/lib/api";
+import { obtenerProductos, crearProducto, actualizarProducto, eliminarProducto, obtenerStock, obtenerTiendas, registrarEntrada, actualizarStockDirecto } from "@/lib/api";
 import { Producto, Stock, Tienda } from "@/lib/types";
 import {
   Package, Plus, Pencil, Trash2, Search, Tag, DollarSign,
@@ -35,6 +35,7 @@ export default function ProductosPage() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [stockEdit, setStockEdit] = useState<Record<number, number>>({});
 
   useEffect(() => { cargarProductos(); }, []);
 
@@ -65,6 +66,11 @@ export default function ProductosPage() {
       precio_venta: p.precio_venta, stock_minimo: p.stock_minimo,
       tienda_id: 0, cantidad_inicial: 0,
     });
+    const stockMap: Record<number, number> = {};
+    tiendas.forEach((t) => {
+      stockMap[t.id] = getStockPorProducto(p.id, t.id);
+    });
+    setStockEdit(stockMap);
     setModal("editar");
   };
 
@@ -81,9 +87,17 @@ export default function ProductosPage() {
           await registrarEntrada(prod.id, tienda_id, cantidad_inicial, user.id);
         }
         setToast({ message: "Producto creado con stock inicial", type: "success" });
-      } else if (editId) {
+      } else if (editId && user) {
         await actualizarProducto(editId, form);
-        setToast({ message: "Producto actualizado exitosamente", type: "success" });
+        for (const tiendaId of Object.keys(stockEdit)) {
+          const tid = Number(tiendaId);
+          const nuevaCant = stockEdit[tid];
+          const actual = getStockPorProducto(editId, tid);
+          if (nuevaCant !== actual) {
+            await actualizarStockDirecto(editId, tid, nuevaCant);
+          }
+        }
+        setToast({ message: "Producto y stock actualizados exitosamente", type: "success" });
       }
       setModal(null);
       cargarProductos();
@@ -322,6 +336,24 @@ export default function ProductosPage() {
                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none dark:bg-gray-700 dark:text-white" />
                     </div>
                   </>
+                )}
+
+                {modal === "editar" && (
+                  <div className="md:col-span-2 border-t border-gray-200 dark:border-gray-700 pt-4">
+                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-1.5">
+                      <Warehouse className="h-4 w-4" /> Stock por tienda
+                    </p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {tiendas.map((t) => (
+                        <div key={t.id}>
+                          <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{t.nombre}</label>
+                          <input type="number" min="0" value={stockEdit[t.id] ?? 0}
+                            onChange={(e) => setStockEdit((prev) => ({ ...prev, [t.id]: Number(e.target.value) }))}
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none dark:bg-gray-700 dark:text-white" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
 
                 <div className="md:col-span-2">

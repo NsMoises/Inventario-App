@@ -81,6 +81,20 @@ export async function obtenerStock(
   return data ?? [];
 }
 
+export async function actualizarStockDirecto(
+  productoId: number,
+  tiendaId: number,
+  cantidad: number
+): Promise<void> {
+  const { error } = await supabase
+    .from("stock")
+    .upsert(
+      { producto_id: productoId, tienda_id: tiendaId, cantidad },
+      { onConflict: "producto_id, tienda_id" }
+    );
+  if (error) throw error;
+}
+
 // ========================
 // KARDEX / MOVIMIENTOS
 // ========================
