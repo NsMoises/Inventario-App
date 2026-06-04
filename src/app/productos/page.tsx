@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import { obtenerProductos, crearProducto, actualizarProducto, eliminarProducto } from "@/lib/api";
-import { Producto } from "@/lib/types";
+import { obtenerProductos, crearProducto, actualizarProducto, eliminarProducto, obtenerStock, obtenerTiendas } from "@/lib/api";
+import { Producto, Stock, Tienda } from "@/lib/types";
 import {
   Package, Plus, Pencil, Trash2, Search, Tag, DollarSign,
-  Building2, Box, Warehouse, Hash, FileText
+  Building2, Box, Warehouse, Hash, FileText, Store
 } from "lucide-react";
 import Toast from "@/components/Toast";
 
@@ -21,8 +21,11 @@ const emptyForm = {
 
 export default function ProductosPage() {
   const [productos, setProductos] = useState<Producto[]>([]);
+  const [stock, setStock] = useState<Stock[]>([]);
+  const [tiendas, setTiendas] = useState<Tienda[]>([]);
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState("");
+  const [tiendaFiltro, setTiendaFiltro] = useState<number | "">("");
   const [toast, setToast] = useState<ToastType | null>(null);
 
   const [modal, setModal] = useState<ModalMode>(null);
@@ -35,8 +38,14 @@ export default function ProductosPage() {
   const cargarProductos = async () => {
     setLoading(true);
     try {
-      const data = await obtenerProductos();
-      setProductos(data);
+      const [prodData, stockData, tiendasData] = await Promise.all([
+        obtenerProductos(),
+        obtenerStock(),
+        obtenerTiendas(),
+      ]);
+      setProductos(prodData);
+      setStock(stockData);
+      setTiendas(tiendasData);
     } catch (error) {
       console.error(error);
     } finally { setLoading(false); }
@@ -86,13 +95,19 @@ export default function ProductosPage() {
     }
   };
 
-  const filtrados = productos.filter(
-    (p) =>
+  const getStockPorProducto = (productoId: number, tiendaId: number) =>
+    stock.find((s) => s.producto_id === productoId && s.tienda_id === tiendaId)?.cantidad ?? 0;
+
+  const filtrados = productos.filter((p) => {
+    const coincideBusqueda =
       p.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
       p.sku.toLowerCase().includes(busqueda.toLowerCase()) ||
       p.categoria.toLowerCase().includes(busqueda.toLowerCase()) ||
-      p.marca.toLowerCase().includes(busqueda.toLowerCase())
-  );
+      p.marca.toLowerCase().includes(busqueda.toLowerCase());
+    if (!tiendaFiltro) return coincideBusqueda;
+    const stockEnTienda = getStockPorProducto(p.id, Number(tiendaFiltro));
+    return coincideBusqueda && stockEnTienda > 0;
+  });
 
   return (
     <ProtectedRoute adminOnly>
@@ -110,11 +125,21 @@ export default function ProductosPage() {
           </button>
         </div>
 
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input type="text" value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar por nombre, SKU, categoría o marca..."
-            className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none dark:bg-gray-800 dark:text-white" />
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input type="text" value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar por nombre, SKU, categoría o marca..."
+              className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none dark:bg-gray-800 dark:text-white" />
+          </div>
+          <div className="flex items-center gap-2">
+            <Store className="h-4 w-4 text-gray-400" />
+            <select value={tiendaFiltro} onChange={(e) => setTiendaFiltro(e.target.value as any)}
+              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none dark:bg-gray-800 dark:text-white">
+              <option value="">Todas las tiendas</option>
+              {tiendas.map((t) => (<option key={t.id} value={t.id}>{t.nombre}</option>))}
+            </select>
+          </div>
         </div>
 
         {loading ? (
@@ -133,6 +158,9 @@ export default function ProductosPage() {
                     <th className="px-4 py-3 font-medium">Marca</th>
                     <th className="px-4 py-3 font-medium">P. Venta</th>
                     <th className="px-4 py-3 font-medium">Stock Mín</th>
+                    {!tiendaFiltro && tiendas.map((t) => (
+                      <th key={t.id} className="px-3 py-3 font-medium text-primary-600 dark:text-primary-400 text-center text-[10px]">{t.nombre}</th>
+                    ))}
                     <th className="px-4 py-3 font-medium">Proveedor</th>
                     <th className="px-4 py-3 font-medium w-20">Acciones</th>
                   </tr>
@@ -153,6 +181,15 @@ export default function ProductosPage() {
                         {p.precio_venta > 0 ? `S/ ${p.precio_venta.toFixed(2)}` : "—"}
                       </td>
                       <td className="px-4 py-3">{p.stock_minimo}</td>
+                      {!tiendaFiltro && tiendas.map((t) => {
+                        const cant = getStockPorProducto(p.id, t.id);
+                        const bajo = cant <= p.stock_minimo && p.stock_minimo > 0;
+                        return (
+                          <td key={t.id} className={`px-3 py-3 text-center text-sm font-semibold ${bajo ? "text-red-600 dark:text-red-400" : cant > 0 ? "text-green-600 dark:text-green-400" : "text-gray-400"}`}>
+                            {cant}
+                          </td>
+                        );
+                      })}
                       <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{p.proveedor || "—"}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
@@ -169,7 +206,7 @@ export default function ProductosPage() {
                     </tr>
                   ))}
                   {filtrados.length === 0 && (
-                    <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-400">
+                    <tr><td colSpan={7 + tiendas.length} className="px-4 py-12 text-center text-gray-400">
                       <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
                       No hay productos registrados
                     </td></tr>
