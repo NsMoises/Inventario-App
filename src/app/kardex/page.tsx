@@ -7,9 +7,10 @@ import { obtenerKardex, obtenerTiendas, registrarEntrada } from "@/lib/api";
 import { Kardex, Tienda } from "@/lib/types";
 import {
   Search, Filter, Plus, ClipboardList, Download,
-  CalendarDays, FileSpreadsheet, FileText, ChevronLeft, ChevronRight,
+  CalendarDays, FileSpreadsheet, FileText, ChevronLeft, ChevronRight, ScanLine,
 } from "lucide-react";
 import Toast from "@/components/Toast";
+import BarcodeScanner from "@/components/BarcodeScanner";
 import { supabase } from "@/lib/supabase";
 import * as XLSX from "xlsx";
 
@@ -35,6 +36,7 @@ export default function KardexPage() {
   const [entradaProducto, setEntradaProducto] = useState("");
   const [entradaCantidad, setEntradaCantidad] = useState("");
   const [productos, setProductos] = useState<any[]>([]);
+  const [showScanner, setShowScanner] = useState(false);
 
   useEffect(() => {
     if (perfil && !esAdmin) {
@@ -75,7 +77,8 @@ export default function KardexPage() {
     const coincideBusqueda =
       !busqueda ||
       mov.productos?.nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
-      mov.productos?.sku?.toLowerCase().includes(busqueda.toLowerCase());
+      mov.productos?.sku?.toLowerCase().includes(busqueda.toLowerCase()) ||
+      (mov.productos?.codigo_barras ?? "").toLowerCase().includes(busqueda.toLowerCase());
     const coincideTipo = !filtroTipo || mov.tipo_movimiento === filtroTipo;
     return coincideBusqueda && coincideTipo;
   });
@@ -179,11 +182,17 @@ export default function KardexPage() {
         </div>
 
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input type="text" value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar por producto o SKU..."
-              className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none dark:bg-gray-800 dark:text-white" />
+          <div className="relative flex-1 max-w-md flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input type="text" value={busqueda} onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar por producto, SKU o código..."
+                className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none dark:bg-gray-800 dark:text-white" />
+            </div>
+            <button type="button" onClick={() => setShowScanner(true)}
+              className="px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1">
+              <ScanLine className="h-4 w-4" />
+            </button>
           </div>
           <div className="relative">
             <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -218,6 +227,7 @@ export default function KardexPage() {
                     <th className="px-5 py-3 font-medium">Fecha/Hora</th>
                     <th className="px-5 py-3 font-medium">Producto</th>
                     <th className="px-5 py-3 font-medium">SKU</th>
+                    <th className="px-5 py-3 font-medium">Cód. Barras</th>
                     <th className="px-5 py-3 font-medium">Tipo</th>
                     <th className="px-5 py-3 font-medium">Cantidad</th>
                     <th className="px-5 py-3 font-medium">Origen</th>
@@ -236,6 +246,9 @@ export default function KardexPage() {
                       </td>
                       <td className="px-5 py-3 text-gray-500 font-mono text-xs">
                         {mov.productos?.sku ?? "—"}
+                      </td>
+                      <td className="px-5 py-3 text-gray-400 font-mono text-xs">
+                        {mov.productos?.codigo_barras || "—"}
                       </td>
                       <td className="px-5 py-3">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -256,7 +269,7 @@ export default function KardexPage() {
                   ))}
                   {movimientosFiltrados.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-5 py-12 text-center text-gray-400">
+                      <td colSpan={9} className="px-5 py-12 text-center text-gray-400">
                         <ClipboardList className="h-8 w-8 mx-auto mb-2 opacity-50" />
                         No se encontraron movimientos
                       </td>
@@ -294,13 +307,19 @@ export default function KardexPage() {
             <form onSubmit={handleEntrada} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Producto</label>
-                <select value={entradaProducto} onChange={(e) => setEntradaProducto(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none dark:bg-gray-700 dark:text-white" required>
-                  <option value="">Seleccionar producto</option>
-                  {productos.map((p) => (
-                    <option key={p.id} value={p.id}>{p.nombre} ({p.sku})</option>
-                  ))}
-                </select>
+                <div className="flex gap-2">
+                  <select value={entradaProducto} onChange={(e) => setEntradaProducto(e.target.value)}
+                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none dark:bg-gray-700 dark:text-white" required>
+                    <option value="">Seleccionar producto</option>
+                    {productos.map((p) => (
+                      <option key={p.id} value={p.id}>{p.nombre} ({p.sku})</option>
+                    ))}
+                  </select>
+                  <button type="button" onClick={() => setShowScanner(true)}
+                    className="px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1">
+                    <ScanLine className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Cantidad</label>
@@ -320,6 +339,21 @@ export default function KardexPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {showScanner && (
+        <BarcodeScanner
+          onScan={(codigo) => {
+            setBusqueda(codigo);
+            const encontrado = productos.find(
+              (p) => p.codigo_barras === codigo
+            );
+            if (encontrado) {
+              setEntradaProducto(String(encontrado.id));
+            }
+          }}
+          onClose={() => setShowScanner(false)}
+        />
       )}
     </ProtectedRoute>
   );

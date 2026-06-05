@@ -7,15 +7,16 @@ import { obtenerProductos, crearProducto, actualizarProducto, eliminarProducto, 
 import { Producto, Stock, Tienda } from "@/lib/types";
 import {
   Package, Plus, Pencil, Trash2, Search, Tag, DollarSign,
-  Building2, Box, Warehouse, Hash, FileText, Store
+  Building2, Box, Warehouse, Hash, FileText, Store, ScanLine
 } from "lucide-react";
 import Toast from "@/components/Toast";
+import BarcodeScanner from "@/components/BarcodeScanner";
 
 type ToastType = { message: string; type: "success" | "error" };
 type ModalMode = "crear" | "editar" | null;
 
 const emptyForm = {
-  nombre: "", descripcion: "", sku: "", categoria: "",
+  nombre: "", descripcion: "", sku: "", codigo_barras: "", categoria: "",
   marca: "", proveedor: "", unidad_medida: "unidad",
   precio_compra: 0, precio_venta: 0, stock_minimo: 0,
   tienda_id: 0, cantidad_inicial: 0,
@@ -36,6 +37,7 @@ export default function ProductosPage() {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [stockEdit, setStockEdit] = useState<Record<number, number>>({});
+  const [showScanner, setShowScanner] = useState(false);
 
   useEffect(() => { cargarProductos(); }, []);
 
@@ -60,7 +62,7 @@ export default function ProductosPage() {
   const abrirEditar = (p: Producto) => {
     setEditId(p.id);
     setForm({
-      nombre: p.nombre, descripcion: p.descripcion, sku: p.sku,
+      nombre: p.nombre, descripcion: p.descripcion, sku: p.sku, codigo_barras: p.codigo_barras ?? "",
       categoria: p.categoria, marca: p.marca, proveedor: p.proveedor,
       unidad_medida: p.unidad_medida, precio_compra: p.precio_compra,
       precio_venta: p.precio_venta, stock_minimo: p.stock_minimo,
@@ -80,15 +82,16 @@ export default function ProductosPage() {
     e.preventDefault();
     setSaving(true);
     try {
+      const datos = { ...form, codigo_barras: form.codigo_barras || null };
       if (modal === "crear") {
-        const { tienda_id, cantidad_inicial, ...productoData } = form;
+        const { tienda_id, cantidad_inicial, ...productoData } = datos;
         const prod = await crearProducto(productoData);
         if (tienda_id && cantidad_inicial > 0 && user) {
           await registrarEntrada(prod.id, tienda_id, cantidad_inicial, user.id);
         }
         setToast({ message: "Producto creado con stock inicial", type: "success" });
       } else if (editId && user) {
-        await actualizarProducto(editId, form);
+        await actualizarProducto(editId, datos);
         for (const tiendaId of Object.keys(stockEdit)) {
           const tid = Number(tiendaId);
           const nuevaCant = stockEdit[tid];
@@ -125,7 +128,8 @@ export default function ProductosPage() {
       p.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
       p.sku.toLowerCase().includes(busqueda.toLowerCase()) ||
       p.categoria.toLowerCase().includes(busqueda.toLowerCase()) ||
-      p.marca.toLowerCase().includes(busqueda.toLowerCase());
+      p.marca.toLowerCase().includes(busqueda.toLowerCase()) ||
+      (p.codigo_barras ?? "").toLowerCase().includes(busqueda.toLowerCase());
     if (!tiendaFiltro) return coincideBusqueda;
     const stockEnTienda = getStockPorProducto(p.id, Number(tiendaFiltro));
     return coincideBusqueda && stockEnTienda > 0;
@@ -176,6 +180,7 @@ export default function ProductosPage() {
                   <tr className="text-left text-xs text-gray-500 dark:text-gray-400 uppercase bg-gray-50 dark:bg-gray-900">
                     <th className="px-4 py-3 font-medium">Producto</th>
                     <th className="px-4 py-3 font-medium">SKU</th>
+                    <th className="px-4 py-3 font-medium">Cód. Barras</th>
                     <th className="px-4 py-3 font-medium">Categoría</th>
                     <th className="px-4 py-3 font-medium">Marca</th>
                     <th className="px-4 py-3 font-medium">P. Venta</th>
@@ -195,6 +200,7 @@ export default function ProductosPage() {
                         {p.descripcion && <p className="text-xs text-gray-400 truncate max-w-[200px]">{p.descripcion}</p>}
                       </td>
                       <td className="px-4 py-3 font-mono text-xs text-gray-500">{p.sku}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-gray-400">{p.codigo_barras || "—"}</td>
                       <td className="px-4 py-3">
                         {p.categoria && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">{p.categoria}</span>}
                       </td>
@@ -228,7 +234,7 @@ export default function ProductosPage() {
                     </tr>
                   ))}
                   {filtrados.length === 0 && (
-                    <tr><td colSpan={7 + tiendas.length} className="px-4 py-12 text-center text-gray-400">
+                    <tr><td colSpan={8 + tiendas.length} className="px-4 py-12 text-center text-gray-400">
                       <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
                       No hay productos registrados
                     </td></tr>
@@ -261,6 +267,20 @@ export default function ProductosPage() {
                   </label>
                   <input type="text" value={form.sku} onChange={(e) => set("sku", e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none dark:bg-gray-700 dark:text-white" required />
+                </div>
+                <div>
+                  <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <ScanLine className="h-3.5 w-3.5" /> Código de Barras
+                  </label>
+                  <div className="flex gap-2">
+                    <input type="text" value={form.codigo_barras} onChange={(e) => set("codigo_barras", e.target.value)}
+                      placeholder="Escanear o escribir código"
+                      className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none dark:bg-gray-700 dark:text-white" />
+                    <button type="button" onClick={() => setShowScanner(true)}
+                      className="px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1">
+                      <ScanLine className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
                 <div>
                   <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -384,6 +404,13 @@ export default function ProductosPage() {
             </form>
           </div>
         </div>
+      )}
+
+      {showScanner && (
+        <BarcodeScanner
+          onScan={(codigo) => set("codigo_barras", codigo)}
+          onClose={() => setShowScanner(false)}
+        />
       )}
     </ProtectedRoute>
   );

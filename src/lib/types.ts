@@ -20,6 +20,7 @@ export interface Producto {
   nombre: string;
   descripcion: string;
   sku: string;
+  codigo_barras: string | null;
   categoria: string;
   marca: string;
   proveedor: string;

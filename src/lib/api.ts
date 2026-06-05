@@ -29,6 +29,7 @@ export async function crearProducto(producto: {
   nombre: string;
   descripcion: string;
   sku: string;
+  codigo_barras?: string | null;
   categoria?: string;
   marca?: string;
   proveedor?: string;
@@ -48,7 +49,7 @@ export async function crearProducto(producto: {
 
 export async function actualizarProducto(
   id: number,
-  producto: Partial<Pick<Producto, "nombre" | "descripcion" | "sku" | "categoria" | "marca" | "proveedor" | "unidad_medida" | "precio_compra" | "precio_venta" | "stock_minimo">>
+  producto: Partial<Pick<Producto, "nombre" | "descripcion" | "sku" | "codigo_barras" | "categoria" | "marca" | "proveedor" | "unidad_medida" | "precio_compra" | "precio_venta" | "stock_minimo">>
 ): Promise<void> {
   const { error } = await supabase
     .from("productos")

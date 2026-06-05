@@ -48,7 +48,8 @@ export default function StockPage() {
     const coincideBusqueda = !busqueda ||
       p?.nombre?.toLowerCase().includes(busqueda.toLowerCase()) ||
       p?.sku?.toLowerCase().includes(busqueda.toLowerCase()) ||
-      p?.categoria?.toLowerCase().includes(busqueda.toLowerCase());
+      p?.categoria?.toLowerCase().includes(busqueda.toLowerCase()) ||
+      (p?.codigo_barras ?? "").toLowerCase().includes(busqueda.toLowerCase());
     const coincideAlerta = !soloAlertas || (s.cantidad <= (p?.stock_minimo ?? 0) && (p?.stock_minimo ?? 0) > 0);
     return coincideBusqueda && coincideAlerta;
   });
@@ -121,6 +122,7 @@ export default function StockPage() {
                   <tr className="text-left text-xs text-gray-500 uppercase bg-gray-50 dark:bg-gray-900">
                     <th className="px-5 py-3 font-medium">Producto</th>
                     <th className="px-5 py-3 font-medium">SKU</th>
+                    <th className="px-5 py-3 font-medium">Cód. Barras</th>
                     <th className="px-5 py-3 font-medium">Categoría</th>
                     <th className="px-5 py-3 font-medium">Tienda</th>
                     <th className="px-5 py-3 font-medium">Stock</th>
@@ -136,6 +138,7 @@ export default function StockPage() {
                       <tr key={s.id} className={`border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/30 ${bajo ? "bg-red-50 dark:bg-red-900/10" : ""}`}>
                         <td className="px-5 py-3 font-medium text-gray-900 dark:text-white">{s.productos?.nombre ?? "—"}</td>
                         <td className="px-5 py-3 font-mono text-xs text-gray-500">{s.productos?.sku ?? "—"}</td>
+                        <td className="px-5 py-3 font-mono text-xs text-gray-400">{s.productos?.codigo_barras || "—"}</td>
                         <td className="px-5 py-3">{s.productos?.categoria ? (
                           <span className="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">{s.productos.categoria}</span>
                         ) : "—"}</td>
@@ -155,7 +158,7 @@ export default function StockPage() {
                     );
                   })}
                   {filtrados.length === 0 && (
-                    <tr><td colSpan={8} className="px-5 py-12 text-center text-gray-400">
+                    <tr><td colSpan={9} className="px-5 py-12 text-center text-gray-400">
                       <Warehouse className="h-8 w-8 mx-auto mb-2 opacity-50" />
                       No hay stock disponible
                     </td></tr>

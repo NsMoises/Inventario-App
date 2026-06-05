@@ -388,7 +388,20 @@ create policy "Usuario puede insertar kardex"
   );
 
 -- =============================================================
--- 9. DATOS INICIALES (SEED)
+-- 9.5 COLUMNA CÓDIGO DE BARRAS
+-- =============================================================
+do $$ begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_name = 'productos' and column_name = 'codigo_barras'
+  ) then
+    alter table productos add column codigo_barras text unique default null;
+    create index if not exists idx_productos_codigo_barras on productos(codigo_barras);
+  end if;
+end $$;
+
+-- =============================================================
+-- 10. DATOS INICIALES (SEED)
 -- =============================================================
 insert into tiendas (nombre) values
   ('Abancay'),

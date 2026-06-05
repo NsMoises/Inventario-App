@@ -5,8 +5,9 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import { useAuth } from "@/context/AuthContext";
 import { registrarVenta, obtenerStock } from "@/lib/api";
 import { Stock } from "@/lib/types";
-import { ShoppingCart, AlertCircle, Search } from "lucide-react";
+import { ShoppingCart, AlertCircle, Search, ScanLine } from "lucide-react";
 import Toast from "@/components/Toast";
+import BarcodeScanner from "@/components/BarcodeScanner";
 
 type ToastType = {
   message: string;
@@ -21,6 +22,7 @@ export default function VentasPage() {
   const [cantidad, setCantidad] = useState("");
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<ToastType | null>(null);
+  const [showScanner, setShowScanner] = useState(false);
 
   const tiendaId = perfil?.tienda_id;
 
@@ -40,8 +42,9 @@ export default function VentasPage() {
     if (!busqueda) return true;
     const nombre = s.productos?.nombre?.toLowerCase() ?? "";
     const sku = s.productos?.sku?.toLowerCase() ?? "";
+    const codigo = s.productos?.codigo_barras?.toLowerCase() ?? "";
     const q = busqueda.toLowerCase();
-    return nombre.includes(q) || sku.includes(q);
+    return nombre.includes(q) || sku.includes(q) || codigo.includes(q);
   });
 
   const handleVenta = async (e: React.FormEvent) => {
@@ -108,15 +111,21 @@ export default function VentasPage() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   Buscar Producto
                 </label>
-                <div className="relative mb-2">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500" />
-                  <input
-                    type="text"
-                    value={busqueda}
-                    onChange={(e) => setBusqueda(e.target.value)}
-                    placeholder="Nombre o SKU..."
-                    className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none"
-                  />
+                <div className="relative mb-2 flex gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-gray-500" />
+                    <input
+                      type="text"
+                      value={busqueda}
+                      onChange={(e) => setBusqueda(e.target.value)}
+                      placeholder="Nombre, SKU o código..."
+                      className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 outline-none"
+                    />
+                  </div>
+                  <button type="button" onClick={() => setShowScanner(true)}
+                    className="px-3 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-1">
+                    <ScanLine className="h-4 w-4" />
+                  </button>
                 </div>
                 <select
                   value={productoId}
@@ -151,6 +160,11 @@ export default function VentasPage() {
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     SKU: {productoSeleccionado.productos?.sku}
                   </p>
+                  {productoSeleccionado.productos?.codigo_barras && (
+                    <p className="text-xs text-gray-400 dark:text-gray-500">
+                      Cód. Barras: {productoSeleccionado.productos.codigo_barras}
+                    </p>
+                  )}
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     Stock disponible:{" "}
                     <span className="font-semibold text-gray-700 dark:text-gray-200">
@@ -248,6 +262,21 @@ export default function VentasPage() {
           </div>
         </div>
       </div>
+
+      {showScanner && (
+        <BarcodeScanner
+          onScan={(codigo) => {
+            setBusqueda(codigo);
+            const encontrado = stock.find(
+              (s) => s.productos?.codigo_barras === codigo
+            );
+            if (encontrado) {
+              setProductoId(String(encontrado.producto_id));
+            }
+          }}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
     </ProtectedRoute>
   );
 }
