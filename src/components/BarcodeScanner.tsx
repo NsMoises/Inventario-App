@@ -11,28 +11,40 @@ interface BarcodeScannerProps {
 
 export default function BarcodeScanner({ onScan, onClose }: BarcodeScannerProps) {
   const readerRef = useRef<Html5Qrcode | null>(null);
+  const mountedRef = useRef(true);
   const containerId = "barcode-scanner-reader";
 
   useEffect(() => {
-    const reader = new Html5Qrcode(containerId);
-    readerRef.current = reader;
+    mountedRef.current = true;
+    let reader: Html5Qrcode | null = null;
 
-    reader.start(
-      { facingMode: "environment" },
-      {
-        fps: 10,
-        qrbox: { width: 250, height: 150 },
-      },
-      (decodedText) => {
-        onScan(decodedText);
-        reader.stop().catch(() => {});
-        onClose();
-      },
-      () => {}
-    ).catch(() => {});
+    try {
+      reader = new Html5Qrcode(containerId);
+      readerRef.current = reader;
+
+      reader.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 250, height: 150 } },
+        (decodedText) => {
+          if (!mountedRef.current) return;
+          onScan(decodedText);
+          setTimeout(() => {
+            if (mountedRef.current) {
+              onClose();
+            }
+          }, 300);
+        },
+        () => {}
+      ).catch(() => {});
+    } catch {
+      onClose();
+    }
 
     return () => {
-      reader.stop().catch(() => {});
+      mountedRef.current = false;
+      if (reader) {
+        reader.stop().catch(() => {});
+      }
     };
   }, []);
 
